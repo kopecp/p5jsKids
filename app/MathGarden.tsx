@@ -18,7 +18,7 @@ type Settings = {
   orbit: { points: number; twist: number; speed: number; opacity: number; connections: boolean; system: CoordinateSystem };
   primes: { count: number; spread: number; speed: number; opacity: number; connections: boolean; system: CoordinateSystem };
   formulas: { shape: FormulaId; view: ViewMode; speed: number; thickness: number; opacity: number };
-  mobiusDrive: { maxSpeed: number; trackWidth: number; carColor: "coral" | "blue" | "lime"; throttle: -1 | 0 | 1; steering: -1 | 0 | 1; camera: "orbit" | "thirdPerson"; guides: boolean };
+  mobiusDrive: { maxSpeed: number; trackWidth: number; motionSensitivity: number; carColor: "coral" | "blue" | "lime"; throttle: -1 | 0 | 1; steering: -1 | 0 | 1; camera: "orbit" | "thirdPerson"; guides: boolean };
 };
 
 const FORMULAS: Array<{ id: FormulaId; name: string; dimension: "2D" | "3D"; equation: string; description: string }> = [
@@ -119,7 +119,7 @@ const INITIAL_SETTINGS: Settings = {
   orbit: { points: 680, twist: 1, speed: 1, opacity: 0.9, connections: true, system: "cartesian" },
   primes: { count: 420, spread: 1, speed: 0.8, opacity: 0.9, connections: true, system: "cylindrical" },
   formulas: { shape: "heart", view: "xy", speed: 0.8, thickness: 5, opacity: 0.95 },
-  mobiusDrive: { maxSpeed: 1, trackWidth: 1, carColor: "coral", throttle: 0, steering: 0, camera: "thirdPerson", guides: true },
+  mobiusDrive: { maxSpeed: 1, trackWidth: 1, motionSensitivity: 1.3, carColor: "coral", throttle: 0, steering: 0, camera: "thirdPerson", guides: true },
 };
 
 function Slider({ label, value, min, max, step = 1, unit = "", displayValue, onChange }: {
@@ -742,8 +742,9 @@ export function MathGarden() {
 
       const pitchDelta = shortestAngle(pitch - motionBaselineRef.current.pitch);
       const rollDelta = shortestAngle(roll - motionBaselineRef.current.roll);
-      const targetThrottle = clampTilt(-pitchDelta);
-      const targetSteering = clampTilt(rollDelta);
+      const sensitivity = settingsRef.current.mobiusDrive.motionSensitivity;
+      const targetThrottle = Math.max(-1, Math.min(1, clampTilt(-pitchDelta) * sensitivity));
+      const targetSteering = Math.max(-1, Math.min(1, clampTilt(rollDelta) * sensitivity));
       const previous = motionInputRef.current;
       motionInputRef.current = {
         mobile: true,
@@ -899,7 +900,13 @@ export function MathGarden() {
       const value = settings.mobiusDrive;
       return <>
         {mobileDevice
-          ? <MotionDriveCard status={motionStatus} onEnable={enableMotionControls} onCalibrate={calibrateMotionControls} />
+          ? <MotionDriveCard
+              status={motionStatus}
+              sensitivity={value.motionSensitivity}
+              onEnable={enableMotionControls}
+              onCalibrate={calibrateMotionControls}
+              onSensitivityChange={(next) => update("mobiusDrive", "motionSensitivity", next)}
+            />
           : <>
               <div className="keyboard-card"><span aria-hidden="true">⌨</span><p><strong>Sterowanie klawiaturą</strong><br />↑ gaz · ↓ wsteczny<br />← skręt w lewo · → skręt w prawo</p></div>
               <DrivePad onThrottle={(direction) => update("mobiusDrive", "throttle", direction)} onSteering={(direction) => update("mobiusDrive", "steering", direction)} />
@@ -1036,10 +1043,12 @@ function FormulaPicker({ value, onChange }: { value: FormulaId; onChange: (value
   );
 }
 
-function MotionDriveCard({ status, onEnable, onCalibrate }: {
+function MotionDriveCard({ status, sensitivity, onEnable, onCalibrate, onSensitivityChange }: {
   status: MotionControlStatus;
+  sensitivity: number;
   onEnable: () => void;
   onCalibrate: () => void;
+  onSensitivityChange: (value: number) => void;
 }) {
   const active = status === "active";
   const message = {
@@ -1058,7 +1067,13 @@ function MotionDriveCard({ status, onEnable, onCalibrate }: {
     <div>
       <p><strong>{active ? "Sterowanie ruchem aktywne" : "Sterowanie ruchem telefonu"}</strong><br />{message}</p>
       {(status === "idle" || status === "denied") && <button type="button" onClick={onEnable}>Włącz czujniki</button>}
-      {active && <button type="button" onClick={onCalibrate}>Ustaw pozycję neutralną</button>}
+      {active && <div className="motion-actions">
+        <button type="button" onClick={onCalibrate}>Ustaw pozycję neutralną</button>
+        <label className="motion-sensitivity">
+          <span>Czułość <output>{sensitivity.toFixed(1)}×</output></span>
+          <input type="range" min={0.6} max={2.5} step={0.1} value={sensitivity} onChange={(event) => onSensitivityChange(Number(event.target.value))} />
+        </label>
+      </div>}
     </div>
   </div>;
 }

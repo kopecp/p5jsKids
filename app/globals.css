@@ -118,6 +118,11 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 19px; heigh
 .motion-card.active { border-color: color-mix(in srgb, #31a96b 50%, var(--line)); background: color-mix(in srgb, #31a96b 9%, white); }
 .motion-card.active > span { color: #218653; }
 .motion-card button { margin-top: 9px; padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 8px; background: white; color: var(--ink); font-size: 9px; font-weight: 850; cursor: pointer; }
+.motion-actions { display: grid; grid-template-columns: auto minmax(110px, 1fr); align-items: end; gap: 10px; }
+.motion-sensitivity { display: grid; gap: 3px; margin-top: 7px; }
+.motion-sensitivity > span { display: flex; justify-content: space-between; gap: 12px; color: var(--ink); font-size: 9px; font-weight: 800; }
+.motion-sensitivity output { color: var(--accent); }
+.motion-sensitivity input { width: 100%; accent-color: var(--accent); }
 .drive-pad { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 25px; }
 .drive-pad button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 7px; border: 1px solid var(--line); border-radius: 11px; background: white; font-size: 10px; font-weight: 850; cursor: pointer; box-shadow: 0 3px 0 #dad5ca; touch-action: none; }
 .drive-pad button:active { transform: translateY(2px); box-shadow: 0 1px 0 #dad5ca; }
@@ -171,6 +176,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, va
   .camera-tools { right: 14px; left: 14px; bottom: 76px; justify-content: space-between; }
   .camera-tools span { max-width: 190px; }
   .controls-body { display: block; }
+  .motion-actions { grid-template-columns: 1fr; align-items: stretch; }
+  .motion-card button { justify-self: start; }
   .learning-grid { grid-template-columns: 1fr; }
   .formula-card, .explain-card, .discovery-card { min-height: 155px; }
   footer { flex-direction: column; gap: 5px; }
