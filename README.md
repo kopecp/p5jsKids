@@ -3,7 +3,7 @@
 Interaktywne laboratorium p5.js dla dzieci z siedmioma dużymi wizualizacjami:
 złoty kąt słonecznika, zbiór Mandelbrota, spiralę Fibonacciego, orbity 3D
 przestrzenną helisę liczb pierwszych, atlas sześciu pięknych równań 2D i 3D
-oraz sterowany strzałkami samochodzik na wstędze Möbiusa.
+oraz samochodzik na wstędze Möbiusa sterowany strzałkami na komputerze lub przechyleniem telefonu na urządzeniu mobilnym.
 
 Wizualizacja liczb pierwszych korzysta ze statycznej listy pierwszych 1000
 wartości z OEIS A000040 — podczas animacji nie jest uruchamiany algorytm sita.

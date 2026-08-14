@@ -114,6 +114,10 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 19px; heigh
 .keyboard-card > span { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: white; color: var(--accent); font-size: 20px; box-shadow: 0 2px 7px rgba(23,34,56,.1); }
 .keyboard-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .keyboard-card strong { color: var(--ink); font-size: 11px; }
+.motion-card > div { min-width: 0; }
+.motion-card.active { border-color: color-mix(in srgb, #31a96b 50%, var(--line)); background: color-mix(in srgb, #31a96b 9%, white); }
+.motion-card.active > span { color: #218653; }
+.motion-card button { margin-top: 9px; padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 8px; background: white; color: var(--ink); font-size: 9px; font-weight: 850; cursor: pointer; }
 .drive-pad { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 25px; }
 .drive-pad button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 7px; border: 1px solid var(--line); border-radius: 11px; background: white; font-size: 10px; font-weight: 850; cursor: pointer; box-shadow: 0 3px 0 #dad5ca; touch-action: none; }
 .drive-pad button:active { transform: translateY(2px); box-shadow: 0 1px 0 #dad5ca; }

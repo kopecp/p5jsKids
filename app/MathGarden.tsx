@@ -8,6 +8,8 @@ type LabId = "sunflower" | "mandelbrot" | "fibonacci" | "orbit" | "primes" | "fo
 type CoordinateSystem = "cartesian" | "cylindrical" | "elliptic";
 type FormulaId = "heart" | "butterfly" | "rose" | "trefoil" | "torus" | "mobius";
 type ViewMode = "xy" | "3d";
+type MotionControlStatus = "desktop" | "idle" | "requesting" | "listening" | "active" | "denied" | "unsupported" | "insecure";
+type MotionInput = { mobile: boolean; enabled: boolean; throttle: number; steering: number };
 
 type Settings = {
   sunflower: { seeds: number; angle: number; size: number; speed: number; guides: boolean };
@@ -131,10 +133,11 @@ function Slider({ label, value, min, max, step = 1, unit = "", displayValue, onC
   );
 }
 
-function LabCanvas({ lab, settingsRef, playingRef, restartKey, onDriveGameOver, onDriveLap }: {
+function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, onDriveGameOver, onDriveLap }: {
   lab: LabId;
   settingsRef: React.MutableRefObject<Settings>;
   playingRef: React.MutableRefObject<boolean>;
+  motionInputRef: React.MutableRefObject<MotionInput>;
   restartKey: number;
   onDriveGameOver: (gameOver: boolean) => void;
   onDriveLap: (status: { lap: number; twist: number }) => void;
@@ -500,14 +503,21 @@ function LabCanvas({ lab, settingsRef, playingRef, restartKey, onDriveGameOver, 
           const halfWidth = radius * 0.34 * current.trackWidth;
           const steps = 220;
 
-          const keyboardThrottle = (sketch.keyIsDown(sketch.UP_ARROW) ? 1 : 0) + (sketch.keyIsDown(sketch.DOWN_ARROW) ? -1 : 0);
-          const keyboardSteering = (sketch.keyIsDown(sketch.RIGHT_ARROW) ? 1 : 0) + (sketch.keyIsDown(sketch.LEFT_ARROW) ? -1 : 0);
-          const throttle = Math.max(-1, Math.min(1, keyboardThrottle + current.throttle));
-          const steering = Math.max(-1, Math.min(1, keyboardSteering + current.steering));
+          const motion = motionInputRef.current;
+          const keyboardThrottle = motion.mobile ? 0 : (sketch.keyIsDown(sketch.UP_ARROW) ? 1 : 0) + (sketch.keyIsDown(sketch.DOWN_ARROW) ? -1 : 0);
+          const keyboardSteering = motion.mobile ? 0 : (sketch.keyIsDown(sketch.RIGHT_ARROW) ? 1 : 0) + (sketch.keyIsDown(sketch.LEFT_ARROW) ? -1 : 0);
+          const throttle = motion.mobile
+            ? (motion.enabled ? Math.max(0, motion.throttle) : 0)
+            : Math.max(-1, Math.min(1, keyboardThrottle + current.throttle));
+          const brake = motion.mobile && motion.enabled ? Math.max(0, -motion.throttle) : 0;
+          const steering = motion.mobile
+            ? (motion.enabled ? motion.steering : 0)
+            : Math.max(-1, Math.min(1, keyboardSteering + current.steering));
 
           if (!driveGameOver) {
             if (throttle !== 0) carVelocity += throttle * delta * 0.00042 * current.maxSpeed;
-            carVelocity *= Math.pow(throttle === 0 ? 0.982 : 0.993, delta / 16.67);
+            carVelocity *= Math.pow(brake > 0 ? 1 - brake * 0.075 : throttle === 0 ? 0.982 : 0.993, delta / 16.67);
+            if (brake > 0.9 && Math.abs(carVelocity) < 0.0015) carVelocity = 0;
             const speedLimit = 0.31 * current.maxSpeed;
             carVelocity = Math.max(-speedLimit * 0.55, Math.min(speedLimit, carVelocity));
             const steerStrength = 0.00075 + Math.abs(carVelocity) / Math.max(speedLimit, 0.01) * 0.00145;
@@ -649,7 +659,7 @@ function LabCanvas({ lab, settingsRef, playingRef, restartKey, onDriveGameOver, 
 
     mount();
     return () => { cancelled = true; instance?.remove(); };
-  }, [lab, restartKey, playingRef, settingsRef, onDriveGameOver, onDriveLap]);
+  }, [lab, restartKey, playingRef, settingsRef, motionInputRef, onDriveGameOver, onDriveLap]);
 
   return <div className={`canvas-wrap canvas-${lab}`} ref={hostRef} />;
 }
@@ -661,11 +671,97 @@ export function MathGarden() {
   const [restartKey, setRestartKey] = useState(0);
   const [driveGameOver, setDriveGameOver] = useState(false);
   const [driveLapStatus, setDriveLapStatus] = useState({ lap: 0, twist: 1 });
+  const [mobileDevice, setMobileDevice] = useState(false);
+  const [motionEnabled, setMotionEnabled] = useState(false);
+  const [motionStatus, setMotionStatus] = useState<MotionControlStatus>("desktop");
   const settingsRef = useRef(settings);
   const playingRef = useRef(isPlaying);
+  const motionInputRef = useRef<MotionInput>({ mobile: false, enabled: false, throttle: 0, steering: 0 });
+  const motionBaselineRef = useRef<{ pitch: number; roll: number } | null>(null);
+  const latestMotionTiltRef = useRef<{ pitch: number; roll: number } | null>(null);
+  const receivedMotionSampleRef = useRef(false);
   settingsRef.current = settings;
   playingRef.current = isPlaying;
   const lab = LABS.find((item) => item.id === activeLab)!;
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+      || (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 900px)").matches);
+    const supported = "DeviceOrientationEvent" in window;
+    motionInputRef.current = { mobile, enabled: false, throttle: 0, steering: 0 };
+    const frame = window.requestAnimationFrame(() => {
+      setMobileDevice(mobile);
+      if (!mobile) setMotionStatus("desktop");
+      else if (!window.isSecureContext) setMotionStatus("insecure");
+      else setMotionStatus(supported ? "idle" : "unsupported");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileDevice || !motionEnabled || activeLab !== "mobiusDrive") {
+      motionInputRef.current = { mobile: mobileDevice, enabled: false, throttle: 0, steering: 0 };
+      return;
+    }
+
+    const clampTilt = (value: number) => {
+      const deadZone = 3;
+      const fullTilt = 22;
+      const magnitude = Math.abs(value);
+      if (magnitude <= deadZone) return 0;
+      return Math.sign(value) * Math.min(1, (magnitude - deadZone) / (fullTilt - deadZone));
+    };
+    const shortestAngle = (value: number) => ((value + 180) % 360 + 360) % 360 - 180;
+    const resetMotionBaseline = () => {
+      motionBaselineRef.current = null;
+      latestMotionTiltRef.current = null;
+      receivedMotionSampleRef.current = false;
+      motionInputRef.current = { mobile: true, enabled: true, throttle: 0, steering: 0 };
+      setMotionStatus("listening");
+    };
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null || event.gamma === null) return;
+      const legacyAngle = (window as Window & { orientation?: number }).orientation ?? 0;
+      const screenAngle = window.screen.orientation?.angle ?? legacyAngle;
+      const angle = screenAngle * Math.PI / 180;
+      const pitch = event.beta * Math.cos(angle) - event.gamma * Math.sin(angle);
+      const roll = event.gamma * Math.cos(angle) + event.beta * Math.sin(angle);
+      const sample = { pitch, roll };
+      latestMotionTiltRef.current = sample;
+
+      if (!motionBaselineRef.current) {
+        motionBaselineRef.current = sample;
+        motionInputRef.current = { mobile: true, enabled: true, throttle: 0, steering: 0 };
+        if (!receivedMotionSampleRef.current) {
+          receivedMotionSampleRef.current = true;
+          setMotionStatus("active");
+        }
+        return;
+      }
+
+      const pitchDelta = shortestAngle(pitch - motionBaselineRef.current.pitch);
+      const rollDelta = shortestAngle(roll - motionBaselineRef.current.roll);
+      const targetThrottle = clampTilt(-pitchDelta);
+      const targetSteering = clampTilt(rollDelta);
+      const previous = motionInputRef.current;
+      motionInputRef.current = {
+        mobile: true,
+        enabled: true,
+        throttle: previous.throttle * 0.7 + targetThrottle * 0.3,
+        steering: previous.steering * 0.7 + targetSteering * 0.3,
+      };
+    };
+
+    resetMotionBaseline();
+    window.addEventListener("deviceorientation", handleOrientation, true);
+    window.addEventListener("orientationchange", resetMotionBaseline);
+    return () => {
+      window.removeEventListener("deviceorientation", handleOrientation, true);
+      window.removeEventListener("orientationchange", resetMotionBaseline);
+      motionInputRef.current = { mobile: mobileDevice, enabled: false, throttle: 0, steering: 0 };
+    };
+  }, [activeLab, mobileDevice, motionEnabled]);
 
   useEffect(() => {
     if (activeLab !== "mobiusDrive") return;
@@ -675,6 +771,43 @@ export function MathGarden() {
     window.addEventListener("keydown", stopPageScroll, { passive: false });
     return () => window.removeEventListener("keydown", stopPageScroll);
   }, [activeLab]);
+
+  const enableMotionControls = async () => {
+    if (!mobileDevice || !("DeviceOrientationEvent" in window)) {
+      setMotionStatus("unsupported");
+      return;
+    }
+    if (!window.isSecureContext) {
+      setMotionStatus("insecure");
+      return;
+    }
+
+    setMotionStatus("requesting");
+    try {
+      const orientationEvent = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+        requestPermission?: () => Promise<"granted" | "denied">;
+      };
+      if (typeof orientationEvent.requestPermission === "function") {
+        const permission = await orientationEvent.requestPermission();
+        if (permission !== "granted") {
+          setMotionStatus("denied");
+          return;
+        }
+      }
+      motionBaselineRef.current = null;
+      latestMotionTiltRef.current = null;
+      receivedMotionSampleRef.current = false;
+      setMotionEnabled(true);
+      setMotionStatus("listening");
+    } catch {
+      setMotionStatus("denied");
+    }
+  };
+
+  const calibrateMotionControls = () => {
+    motionBaselineRef.current = latestMotionTiltRef.current;
+    motionInputRef.current = { mobile: true, enabled: true, throttle: 0, steering: 0 };
+  };
 
   const update = <L extends LabId, K extends keyof Settings[L]>(labId: L, key: K, value: Settings[L][K]) => {
     setSettings((current) => ({ ...current, [labId]: { ...current[labId], [key]: value } }));
@@ -765,8 +898,12 @@ export function MathGarden() {
     if (activeLab === "mobiusDrive") {
       const value = settings.mobiusDrive;
       return <>
-        <div className="keyboard-card"><span aria-hidden="true">⌨</span><p><strong>Sterowanie klawiaturą</strong><br />↑ gaz · ↓ wsteczny<br />← skręt w lewo · → skręt w prawo</p></div>
-        <DrivePad onThrottle={(direction) => update("mobiusDrive", "throttle", direction)} onSteering={(direction) => update("mobiusDrive", "steering", direction)} />
+        {mobileDevice
+          ? <MotionDriveCard status={motionStatus} onEnable={enableMotionControls} onCalibrate={calibrateMotionControls} />
+          : <>
+              <div className="keyboard-card"><span aria-hidden="true">⌨</span><p><strong>Sterowanie klawiaturą</strong><br />↑ gaz · ↓ wsteczny<br />← skręt w lewo · → skręt w prawo</p></div>
+              <DrivePad onThrottle={(direction) => update("mobiusDrive", "throttle", direction)} onSteering={(direction) => update("mobiusDrive", "steering", direction)} />
+            </>}
         <fieldset className="view-picker drive-camera-picker">
           <legend>Tryb kamery</legend>
           <div>
@@ -832,7 +969,7 @@ export function MathGarden() {
 
         <div className={`experiment-card ${activeLab === "formulas" ? "formula-lab" : ""}`} role="tabpanel" aria-label={lab.short}>
           <div className="stage">
-            <LabCanvas lab={activeLab} settingsRef={settingsRef} playingRef={playingRef} restartKey={restartKey} onDriveGameOver={setDriveGameOver} onDriveLap={setDriveLapStatus} />
+            <LabCanvas lab={activeLab} settingsRef={settingsRef} playingRef={playingRef} motionInputRef={motionInputRef} restartKey={restartKey} onDriveGameOver={setDriveGameOver} onDriveLap={setDriveLapStatus} />
             <div className="live-badge"><span /> P5.JS · NA ŻYWO</div>
             {activeLab === "mobiusDrive" && <div className="lap-status"><span>OKRĄŻENIA <strong>{driveLapStatus.lap}</strong></span><span>SKRĘT <strong>{driveLapStatus.twist > 0 ? "↻" : "↺"} {Math.abs(driveLapStatus.twist)}×</strong></span></div>}
             <div className="stage-label"><small>EKSPERYMENT {lab.number}</small><strong>{lab.short}</strong></div>
@@ -897,6 +1034,33 @@ function FormulaPicker({ value, onChange }: { value: FormulaId; onChange: (value
       </div>
     </fieldset>
   );
+}
+
+function MotionDriveCard({ status, onEnable, onCalibrate }: {
+  status: MotionControlStatus;
+  onEnable: () => void;
+  onCalibrate: () => void;
+}) {
+  const active = status === "active";
+  const message = {
+    idle: "Włącz czujniki i trzymaj telefon wygodnie — ta pozycja stanie się neutralna.",
+    requesting: "Czekam na zgodę przeglądarki…",
+    listening: "Czekam na pierwszy odczyt czujników…",
+    active: "Do przodu: gaz · do siebie: hamulec · przechylenie na boki: skręt.",
+    denied: "Brak dostępu do czujników. Zezwól na ruch i orientację w ustawieniach przeglądarki.",
+    unsupported: "Ta przeglądarka nie udostępnia czujników orientacji.",
+    insecure: "Czujniki wymagają bezpiecznego adresu HTTPS.",
+    desktop: "",
+  }[status];
+
+  return <div className={`keyboard-card motion-card ${active ? "active" : ""}`} aria-live="polite">
+    <span aria-hidden="true">{active ? "◉" : "⌁"}</span>
+    <div>
+      <p><strong>{active ? "Sterowanie ruchem aktywne" : "Sterowanie ruchem telefonu"}</strong><br />{message}</p>
+      {(status === "idle" || status === "denied") && <button type="button" onClick={onEnable}>Włącz czujniki</button>}
+      {active && <button type="button" onClick={onCalibrate}>Ustaw pozycję neutralną</button>}
+    </div>
+  </div>;
 }
 
 function DrivePad({ onThrottle, onSteering }: { onThrottle: (direction: -1 | 0 | 1) => void; onSteering: (direction: -1 | 0 | 1) => void }) {
