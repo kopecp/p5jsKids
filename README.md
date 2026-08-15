@@ -1,7 +1,7 @@
 # Matematyczny ogród
 
-Interaktywne laboratorium p5.js dla dzieci z siedmioma dużymi wizualizacjami:
-złoty kąt słonecznika, zbiór Mandelbrota, spiralę Fibonacciego, orbity 3D
+Interaktywne laboratorium p5.js dla dzieci z ośmioma dużymi wizualizacjami:
+złoty kąt słonecznika, zbiór Mandelbrota, trójkąt Sierpińskiego, spiralę Fibonacciego, orbity 3D,
 przestrzenną helisę liczb pierwszych, atlas sześciu pięknych równań 2D i 3D
 oraz samochodzik na wstędze Möbiusa sterowany strzałkami na komputerze lub przechyleniem telefonu na urządzeniu mobilnym.
 

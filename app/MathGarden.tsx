@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type p5Type from "p5";
 import { PRIME_NUMBERS } from "./primeNumbers";
 
-type LabId = "sunflower" | "mandelbrot" | "fibonacci" | "orbit" | "primes" | "formulas" | "mobiusDrive";
+type LabId = "sunflower" | "mandelbrot" | "sierpinski" | "fibonacci" | "orbit" | "primes" | "formulas" | "mobiusDrive";
 type CoordinateSystem = "cartesian" | "cylindrical" | "elliptic";
 type FormulaId = "heart" | "butterfly" | "rose" | "trefoil" | "torus" | "mobius";
 type ViewMode = "xy" | "3d";
@@ -15,6 +15,7 @@ type DriveGameOverReason = "edge" | "tree";
 type Settings = {
   sunflower: { seeds: number; angle: number; size: number; speed: number; guides: boolean };
   mandelbrot: { depth: number; centerX: number; centerY: number; iterations: number; palette: number; buildSpeed: number };
+  sierpinski: { levels: number; palette: number; spread: number; speed: number };
   fibonacci: { turns: number; speed: number; thickness: number; guides: boolean };
   orbit: { points: number; twist: number; speed: number; opacity: number; connections: boolean; system: CoordinateSystem };
   primes: { count: number; spread: number; speed: number; opacity: number; connections: boolean; system: CoordinateSystem };
@@ -62,8 +63,18 @@ const LABS: Array<{
     color: "#6c5ce7",
   },
   {
-    id: "fibonacci",
+    id: "sierpinski",
     number: "03",
+    short: "Sierpiński",
+    title: "Podziel",
+    italic: "trójkąt bez końca!",
+    eyebrow: "FRAKTAL Z TRZECH KOPII",
+    description: "Jeden trójkąt dzieli się na trzy mniejsze, a każda kopia powtarza ten sam przepis. Zwiększ poziom i obserwuj, jak rośnie tęczowa koronka.",
+    color: "#ff477e",
+  },
+  {
+    id: "fibonacci",
+    number: "04",
     short: "Fibonacci",
     title: "Policz rytm",
     italic: "spirali!",
@@ -73,7 +84,7 @@ const LABS: Array<{
   },
   {
     id: "orbit",
-    number: "04",
+    number: "05",
     short: "Orbity 3D",
     title: "Wpraw kosmos",
     italic: "w ruch!",
@@ -83,7 +94,7 @@ const LABS: Array<{
   },
   {
     id: "primes",
-    number: "05",
+    number: "06",
     short: "Liczby pierwsze",
     title: "Odkryj",
     italic: "galaktykę liczb!",
@@ -93,7 +104,7 @@ const LABS: Array<{
   },
   {
     id: "formulas",
-    number: "06",
+    number: "07",
     short: "Piękne wzory",
     title: "Narysuj",
     italic: "równanie!",
@@ -103,7 +114,7 @@ const LABS: Array<{
   },
   {
     id: "mobiusDrive",
-    number: "07",
+    number: "08",
     short: "Möbius Drive",
     title: "Przejedź",
     italic: "na drugą stronę!",
@@ -116,6 +127,7 @@ const LABS: Array<{
 const INITIAL_SETTINGS: Settings = {
   sunflower: { seeds: 620, angle: 137.5, size: 7, speed: 1.2, guides: false },
   mandelbrot: { depth: 0, centerX: -0.55, centerY: 0, iterations: 110, palette: 0.12, buildSpeed: 1 },
+  sierpinski: { levels: 5, palette: 0.08, spread: 1.2, speed: 0.7 },
   fibonacci: { turns: 10, speed: 1, thickness: 5, guides: true },
   orbit: { points: 680, twist: 1, speed: 1, opacity: 0.9, connections: true, system: "cartesian" },
   primes: { count: 420, spread: 1, speed: 0.8, opacity: 0.9, connections: true, system: "cylindrical" },
@@ -294,6 +306,44 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
             fractalImage.updatePixels();
           }
           if (fractalImage) sketch.image(fractalImage, 0, 0, sketch.width, sketch.height);
+        };
+
+        const drawSierpinski = (delta: number) => {
+          const current = settingsRef.current.sierpinski;
+          if (playingRef.current) phase = (phase + delta * current.speed * 0.000035) % 1;
+          sketch.background("#0b1020");
+          sketch.colorMode(sketch.HSB, 360, 100, 100, 1);
+          sketch.noStroke();
+
+          const triangleHeight = Math.min(sketch.height * 0.78, sketch.width * 0.76 * Math.sqrt(3) / 2);
+          const side = triangleHeight * 2 / Math.sqrt(3);
+          const centerX = sketch.width / 2;
+          const topY = (sketch.height - triangleHeight) / 2;
+          const top = { x: centerX, y: topY };
+          const left = { x: centerX - side / 2, y: topY + triangleHeight };
+          const right = { x: centerX + side / 2, y: topY + triangleHeight };
+          const midpoint = (a: { x: number; y: number }, b: { x: number; y: number }) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+          const drawPart = (a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }, level: number, branch: number) => {
+            if (level === 0) {
+              const x = (a.x + b.x + c.x) / 3;
+              const y = (a.y + b.y + c.y) / 3;
+              const spatialHue = (x / sketch.width * 210 + y / sketch.height * 150 + branch % 3 * 12) * current.spread;
+              const hue = (current.palette * 360 + phase * 360 + spatialHue) % 360;
+              sketch.fill(hue, 78, 98, 0.98);
+              sketch.triangle(a.x, a.y, b.x, b.y, c.x, c.y);
+              return;
+            }
+            const ab = midpoint(a, b); const bc = midpoint(b, c); const ca = midpoint(c, a);
+            drawPart(a, ab, ca, level - 1, branch * 3);
+            drawPart(ab, b, bc, level - 1, branch * 3 + 1);
+            drawPart(ca, bc, c, level - 1, branch * 3 + 2);
+          };
+
+          drawPart(top, left, right, current.levels, 0);
+          sketch.noFill(); sketch.stroke(0, 0, 100, 0.32); sketch.strokeWeight(1.3);
+          sketch.triangle(top.x, top.y, left.x, left.y, right.x, right.y);
+          sketch.colorMode(sketch.RGB, 255, 255, 255, 255);
         };
 
         const drawFibonacci = (delta: number) => {
@@ -712,6 +762,7 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
           lastTime = now;
           if (lab === "sunflower") drawSunflower(delta);
           if (lab === "mandelbrot") drawMandelbrot(delta);
+          if (lab === "sierpinski") drawSierpinski(delta);
           if (lab === "fibonacci") drawFibonacci(delta);
           if (lab === "orbit") drawOrbit(delta);
           if (lab === "primes") drawPrimes(delta);
@@ -934,6 +985,16 @@ export function MathGarden() {
         <p className="control-hint">Zmiana wejścia albo punktu X/Y czyści płótno i rozpoczyna budowę od nowa.</p>
       </>;
     }
+    if (activeLab === "sierpinski") {
+      const value = settings.sierpinski;
+      return <>
+        <Slider label="Poziom podziału" value={value.levels} min={0} max={8} displayValue={`${Math.pow(3, value.levels).toLocaleString("pl-PL")} trójkątów`} onChange={(next) => update("sierpinski", "levels", next)} />
+        <Slider label="Rozpiętość tęczy" value={value.spread} min={0.2} max={2.5} step={0.1} unit="×" onChange={(next) => update("sierpinski", "spread", next)} />
+        <Slider label="Przesuń kolory" value={value.palette} min={0} max={1} step={0.01} onChange={(next) => update("sierpinski", "palette", next)} />
+        <Slider label="Tempo kolorów" value={value.speed} min={0.1} max={2.5} step={0.1} unit="×" onChange={(next) => update("sierpinski", "speed", next)} />
+        <p className="control-hint">Każdy poziom zastępuje jeden trójkąt trzema mniejszymi kopiami.</p>
+      </>;
+    }
     if (activeLab === "fibonacci") {
       const value = settings.fibonacci;
       return <>
@@ -1018,7 +1079,7 @@ export function MathGarden() {
     <main className="app-shell" style={{ "--accent": lab.color } as React.CSSProperties}>
       <header className="topbar">
         <a className="brand" href="#laboratorium"><span className="brand-mark" aria-hidden="true">✦</span><span>Matematyczny ogród</span></a>
-        <div className="lesson-pill"><span /> 7 eksperymentów</div>
+        <div className="lesson-pill"><span /> 8 eksperymentów</div>
       </header>
 
       <section className="lab-page" id="laboratorium">
@@ -1166,6 +1227,7 @@ function LearningCards({ lab, settings }: { lab: LabId; settings: Settings }) {
   const content = {
     sunflower: { formula: `kąt = n × ${settings.sunflower.angle.toFixed(1)}°`, title: "Każde nasiono ma numer", text: "Pierwiastek z numeru mówi, jak daleko od środka je położyć.", clue: Math.abs(settings.sunflower.angle - 137.5) < 0.1 ? "To złoty kąt — przestrzeń wypełnia się prawie bez luk." : "Odejdź od 137,5° i obserwuj pojawiające się ramiona." },
     mandelbrot: { formula: "z ← z² + c", title: "Jedno działanie, wiele razy", text: "Każda nowa warstwa powtarza wzór dokładniej. Dlatego obraz wyłania się stopniowo z pustego płótna.", clue: "Zwiększ poziom wejścia, a potem przesuń X i Y. Każda zmiana rozpocznie budowę nowego widoku." },
+    sierpinski: { formula: `Tₙ = 3ⁿ = ${Math.pow(3, settings.sierpinski.levels).toLocaleString("pl-PL")}`, title: "Trzy kopie w każdym kroku", text: "Łączymy środki boków i pozostawiamy trzy narożne trójkąty. Potem dokładnie ten sam przepis stosujemy ponownie.", clue: "Przesuwaj poziom podziału w obie strony i obserwuj, jak 1 trójkąt zmienia się w 6561 kolorowych kopii." },
     fibonacci: { formula: "Fₙ = Fₙ₋₁ + Fₙ₋₂", title: "Dodaj dwa poprzednie", text: "1, 1, 2, 3, 5, 8… Każdy krok powiększa spiralę w stałym rytmie.", clue: "Włącz liczby i sprawdź, jak szybko rośnie odległość od środka." },
     orbit: { formula: "θ = n × 137,5°", title: "Złoty kąt w trzech wymiarach", text: "Ten sam pomysł ze słonecznika potrafi równomiernie rozłożyć punkty na kuli.", clue: "Zmień skręt przestrzeni. Dla 1× punkty są najbardziej równomierne." },
     primes: { formula: "p ∈ {2, 3, 5, 7, 11…}", title: "Dzielą się tylko przez 1 i siebie", text: "Nie obliczamy ich podczas animacji — odkrywamy w przestrzeni gotową listę tysiąca liczb pierwszych.", clue: "Dodawaj punkty suwakiem i wypatruj miejsc, w których helisa robi większe przerwy." },

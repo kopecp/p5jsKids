@@ -29,7 +29,7 @@ button { color: inherit; }
 .lab-intro h1 em { color: var(--accent); font-family: Georgia, "Times New Roman", serif; font-weight: 500; transition: color .25s; }
 .lab-intro > p { max-width: 530px; margin: 0 0 5px; color: var(--muted); font-size: clamp(16px, 1.35vw, 19px); line-height: 1.6; }
 
-.lab-tabs { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 14px; padding: 7px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.65); }
+.lab-tabs { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 14px; padding: 7px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.65); }
 .lab-tabs button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 50px; padding: 9px 14px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 820; cursor: pointer; transition: background .2s, color .2s, transform .2s; }
 .lab-tabs button span { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; opacity: .6; }
 .lab-tabs button:hover { background: white; color: var(--ink); }
@@ -156,7 +156,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, va
 
 @media (max-width: 1080px) {
   .lab-intro { grid-template-columns: 1fr; gap: 20px; }
-  .lab-tabs { overflow-x: auto; grid-template-columns: repeat(7, minmax(165px, 1fr)); }
+  .lab-tabs { overflow-x: auto; grid-template-columns: repeat(8, minmax(165px, 1fr)); }
   .experiment-card { grid-template-columns: 1fr; }
   .experiment-card.formula-lab { grid-template-columns: 1fr; }
   .stage { min-height: 650px; }

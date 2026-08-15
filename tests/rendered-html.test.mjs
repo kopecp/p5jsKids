@@ -24,6 +24,7 @@ test("renders the mathematical garden", async () => {
   assert.match(html, /Zakręć/);
   assert.match(html, /Twoje pokrętła/);
   assert.match(html, /Mandelbrot/);
+  assert.match(html, /Sierpiński/);
   assert.match(html, /Fibonacci/);
   assert.match(html, /Orbity 3D/);
   assert.match(html, /Liczby pierwsze/);
