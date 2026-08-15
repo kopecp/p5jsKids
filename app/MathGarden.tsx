@@ -177,14 +177,14 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
           driveObstacles = [];
           const angularDistance = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
           let attempts = 0;
-          while (driveObstacles.length < 10 && attempts < 300) {
+          while (driveObstacles.length < 5 && attempts < 300) {
             attempts += 1;
             const angle = Math.random() * Math.PI * 2;
-            if (angularDistance(angle, 0) < 0.62 || driveObstacles.some((tree) => angularDistance(angle, tree.angle) < 0.32)) continue;
+            if (angularDistance(angle, 0) < 0.72 || driveObstacles.some((tree) => angularDistance(angle, tree.angle) < 0.62)) continue;
             driveObstacles.push({
               angle,
-              lateralRatio: Math.random() * 1.38 - 0.69,
-              scale: 0.82 + Math.random() * 0.42,
+              lateralRatio: Math.random() * 1.24 - 0.62,
+              scale: 0.68 + Math.random() * 0.22,
               shade: Math.floor(Math.random() * 3),
             });
           }
@@ -593,7 +593,7 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
               const treeY = (radius + treeLateral * treeCosHalf) * treeSin;
               const treeZ = treeLateral * treeSinHalf;
               const distance = Math.hypot(carX - treeX, carY - treeY, carZ - treeZ);
-              return distance < 17 + tree.scale * 7;
+              return distance < 15 + tree.scale * 5;
             });
             if (hitTree) {
               driveGameOver = true;
@@ -677,11 +677,11 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
             sketch.rotateX(Math.PI - trackTwist * t / 2);
             sketch.noStroke();
             sketch.fill(126, 82, 52);
-            sketch.push(); sketch.translate(0, 0, 7 * tree.scale); sketch.box(5 * tree.scale, 5 * tree.scale, 14 * tree.scale); sketch.pop();
+            sketch.push(); sketch.translate(0, 0, 6 * tree.scale); sketch.box(4.5 * tree.scale, 4.5 * tree.scale, 12 * tree.scale); sketch.pop();
             sketch.fill(...crownColor);
-            sketch.push(); sketch.translate(0, 0, 21 * tree.scale); sketch.rotateX(-Math.PI / 2); sketch.cone(13 * tree.scale, 25 * tree.scale, 6, 1, true); sketch.pop();
+            sketch.push(); sketch.translate(0, 0, 19 * tree.scale); sketch.rotateX(Math.PI / 2); sketch.cone(10 * tree.scale, 23 * tree.scale, 6, 1, true); sketch.pop();
             sketch.fill(crownColor[0] + 10, crownColor[1] + 12, crownColor[2] + 8);
-            sketch.push(); sketch.translate(0, 0, 31 * tree.scale); sketch.rotateX(-Math.PI / 2); sketch.cone(9 * tree.scale, 19 * tree.scale, 6, 1, true); sketch.pop();
+            sketch.push(); sketch.translate(0, 0, 28 * tree.scale); sketch.rotateX(Math.PI / 2); sketch.cone(7 * tree.scale, 17 * tree.scale, 6, 1, true); sketch.pop();
             sketch.pop();
           }
 
