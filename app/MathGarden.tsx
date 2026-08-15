@@ -181,9 +181,10 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
             attempts += 1;
             const angle = Math.random() * Math.PI * 2;
             if (angularDistance(angle, 0) < 0.72 || driveObstacles.some((tree) => angularDistance(angle, tree.angle) < 0.62)) continue;
+            const side = Math.random() < 0.5 ? -1 : 1;
             driveObstacles.push({
               angle,
-              lateralRatio: Math.random() * 1.24 - 0.62,
+              lateralRatio: side * (0.7 + Math.random() * 0.08),
               scale: 0.68 + Math.random() * 0.22,
               shade: Math.floor(Math.random() * 3),
             });
