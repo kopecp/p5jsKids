@@ -10,6 +10,7 @@ type FormulaId = "heart" | "butterfly" | "rose" | "trefoil" | "torus" | "mobius"
 type ViewMode = "xy" | "3d";
 type MotionControlStatus = "desktop" | "idle" | "requesting" | "listening" | "active" | "denied" | "unsupported" | "insecure";
 type MotionInput = { mobile: boolean; enabled: boolean; throttle: number; steering: number };
+type DriveGameOverReason = "edge" | "tree";
 
 type Settings = {
   sunflower: { seeds: number; angle: number; size: number; speed: number; guides: boolean };
@@ -107,7 +108,7 @@ const LABS: Array<{
     title: "Przejedź",
     italic: "na drugą stronę!",
     eyebrow: "TOR Z TYLKO JEDNĄ STRONĄ",
-    description: "Utrzymaj samochodzik na nieruchomej wstędze Möbiusa. Skręcaj, pilnuj krawędzi i spróbuj przejechać na pozornie drugą stronę toru.",
+    description: "Utrzymaj samochodzik na nieruchomej wstędze Möbiusa. Skręcaj, omijaj drzewa, pilnuj krawędzi i spróbuj przejechać na pozornie drugą stronę toru.",
     color: "#f05252",
   },
 ];
@@ -139,7 +140,7 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
   playingRef: React.MutableRefObject<boolean>;
   motionInputRef: React.MutableRefObject<MotionInput>;
   restartKey: number;
-  onDriveGameOver: (gameOver: boolean) => void;
+  onDriveGameOver: (reason: DriveGameOverReason) => void;
   onDriveLap: (status: { lap: number; twist: number }) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -171,6 +172,24 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
         let driveLapMarker = 0;
         let completedDriveLaps = 0;
         let fractalImage: p5Type.Graphics | null = null;
+        let driveObstacles: Array<{ angle: number; lateralRatio: number; scale: number; shade: number }> = [];
+        const randomizeDriveObstacles = () => {
+          driveObstacles = [];
+          const angularDistance = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+          let attempts = 0;
+          while (driveObstacles.length < 10 && attempts < 300) {
+            attempts += 1;
+            const angle = Math.random() * Math.PI * 2;
+            if (angularDistance(angle, 0) < 0.62 || driveObstacles.some((tree) => angularDistance(angle, tree.angle) < 0.32)) continue;
+            driveObstacles.push({
+              angle,
+              lateralRatio: Math.random() * 1.38 - 0.69,
+              scale: 0.82 + Math.random() * 0.42,
+              shade: Math.floor(Math.random() * 3),
+            });
+          }
+        };
+        if (lab === "mobiusDrive") randomizeDriveObstacles();
 
         const hostSize = () => {
           const rect = hostRef.current!.getBoundingClientRect();
@@ -536,13 +555,14 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
               driveLapMarker = nextLapMarker;
               const twists = [-3, -1, 1, 3].filter((twist) => twist !== trackTwist);
               trackTwist = twists[Math.floor(Math.random() * twists.length)];
+              randomizeDriveObstacles();
               onDriveLap({ lap: completedDriveLaps, twist: trackTwist });
             }
 
             if (Math.abs(carLateral) > halfWidth - 3) {
               driveGameOver = true;
               fallVelocity = Math.max(0.03, Math.abs(carVelocity) * 0.18);
-              onDriveGameOver(true);
+              onDriveGameOver("edge");
             }
           } else {
             fallVelocity += delta * 0.0007;
@@ -563,6 +583,25 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
             y: tangent.y * Math.cos(carHeading) + across.y * Math.sin(carHeading),
             z: tangent.z * Math.cos(carHeading) + across.z * Math.sin(carHeading),
           };
+
+          if (!driveGameOver) {
+            const hitTree = driveObstacles.some((tree) => {
+              const treeLateral = tree.lateralRatio * halfWidth;
+              const treeCos = Math.cos(tree.angle); const treeSin = Math.sin(tree.angle);
+              const treeCosHalf = Math.cos(trackTwist * tree.angle / 2); const treeSinHalf = Math.sin(trackTwist * tree.angle / 2);
+              const treeX = (radius + treeLateral * treeCosHalf) * treeCos;
+              const treeY = (radius + treeLateral * treeCosHalf) * treeSin;
+              const treeZ = treeLateral * treeSinHalf;
+              const distance = Math.hypot(carX - treeX, carY - treeY, carZ - treeZ);
+              return distance < 17 + tree.scale * 7;
+            });
+            if (hitTree) {
+              driveGameOver = true;
+              carVelocity *= 0.18;
+              fallVelocity = 0.018;
+              onDriveGameOver("tree");
+            }
+          }
 
           if (current.camera === "thirdPerson") {
             const lift = 65 + fallDistance * 0.15;
@@ -622,6 +661,30 @@ function LabCanvas({ lab, settingsRef, playingRef, motionInputRef, restartKey, o
             }
           }
 
+          const treeColors = [[48, 132, 90], [60, 151, 104], [76, 166, 105]] as const;
+          for (const tree of driveObstacles) {
+            const t = tree.angle;
+            const s = tree.lateralRatio * halfWidth;
+            const treeCosHalf = Math.cos(trackTwist * t / 2);
+            const x = (radius + s * treeCosHalf) * Math.cos(t);
+            const y = (radius + s * treeCosHalf) * Math.sin(t);
+            const z = s * Math.sin(trackTwist * t / 2);
+            const crownColor = treeColors[tree.shade];
+
+            sketch.push();
+            sketch.translate(x, y, z);
+            sketch.rotateZ(t + Math.PI / 2);
+            sketch.rotateX(Math.PI - trackTwist * t / 2);
+            sketch.noStroke();
+            sketch.fill(126, 82, 52);
+            sketch.push(); sketch.translate(0, 0, 7 * tree.scale); sketch.box(5 * tree.scale, 5 * tree.scale, 14 * tree.scale); sketch.pop();
+            sketch.fill(...crownColor);
+            sketch.push(); sketch.translate(0, 0, 21 * tree.scale); sketch.rotateX(-Math.PI / 2); sketch.cone(13 * tree.scale, 25 * tree.scale, 6, 1, true); sketch.pop();
+            sketch.fill(crownColor[0] + 10, crownColor[1] + 12, crownColor[2] + 8);
+            sketch.push(); sketch.translate(0, 0, 31 * tree.scale); sketch.rotateX(-Math.PI / 2); sketch.cone(9 * tree.scale, 19 * tree.scale, 6, 1, true); sketch.pop();
+            sketch.pop();
+          }
+
           sketch.push();
           sketch.translate(carX, carY, carZ);
           sketch.rotateZ(u + Math.PI / 2);
@@ -669,7 +732,7 @@ export function MathGarden() {
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS);
   const [isPlaying, setIsPlaying] = useState(true);
   const [restartKey, setRestartKey] = useState(0);
-  const [driveGameOver, setDriveGameOver] = useState(false);
+  const [driveGameOver, setDriveGameOver] = useState<DriveGameOverReason | null>(null);
   const [driveLapStatus, setDriveLapStatus] = useState({ lap: 0, twist: 1 });
   const [mobileDevice, setMobileDevice] = useState(false);
   const [motionEnabled, setMotionEnabled] = useState(false);
@@ -816,20 +879,20 @@ export function MathGarden() {
 
   const resetActive = () => {
     setSettings((current) => ({ ...current, [activeLab]: { ...INITIAL_SETTINGS[activeLab] } }));
-    if (activeLab === "mobiusDrive") { setDriveGameOver(false); setDriveLapStatus({ lap: 0, twist: 1 }); }
+    if (activeLab === "mobiusDrive") { setDriveGameOver(null); setDriveLapStatus({ lap: 0, twist: 1 }); }
     setRestartKey((key) => key + 1);
     setIsPlaying(true);
   };
 
   const switchLab = (id: LabId) => {
     setActiveLab(id);
-    if (id === "mobiusDrive") { setDriveGameOver(false); setDriveLapStatus({ lap: 0, twist: 1 }); }
+    if (id === "mobiusDrive") { setDriveGameOver(null); setDriveLapStatus({ lap: 0, twist: 1 }); }
     setIsPlaying(true);
     setRestartKey((key) => key + 1);
   };
 
   const restartDrive = () => {
-    setDriveGameOver(false);
+    setDriveGameOver(null);
     setDriveLapStatus({ lap: 0, twist: 1 });
     setSettings((current) => ({ ...current, mobiusDrive: { ...current.mobiusDrive, throttle: 0, steering: 0 } }));
     setRestartKey((key) => key + 1);
@@ -986,7 +1049,12 @@ export function MathGarden() {
                 <button type="button" onClick={activeLab === "mobiusDrive" ? restartDrive : () => setRestartKey((key) => key + 1)}>{activeLab === "mobiusDrive" ? "↺ Start" : "↺ Ustaw widok"}</button>
               </div>
             )}
-            {activeLab === "mobiusDrive" && driveGameOver && <div className="game-over" role="alert"><small>WYPADŁEŚ Z TORU</small><strong>Game Over</strong><p>Wstęga ma jedną stronę, ale dwie krawędzie.</p><button type="button" onClick={restartDrive}>↺ Spróbuj ponownie</button></div>}
+            {activeLab === "mobiusDrive" && driveGameOver && <div className="game-over" role="alert">
+              <small>{driveGameOver === "tree" ? "ZDERZENIE Z PRZESZKODĄ" : "WYPADŁEŚ Z TORU"}</small>
+              <strong>Game Over</strong>
+              <p>{driveGameOver === "tree" ? "Drzewka są małe, ale na wstędze nie ma pobocza." : "Wstęga ma jedną stronę, ale dwie krawędzie."}</p>
+              <button type="button" onClick={restartDrive}>↺ Nowa trasa</button>
+            </div>}
           </div>
 
           <aside className="controls" aria-label={`Sterowanie: ${lab.short}`}>
@@ -1101,7 +1169,7 @@ function LearningCards({ lab, settings }: { lab: LabId; settings: Settings }) {
     orbit: { formula: "θ = n × 137,5°", title: "Złoty kąt w trzech wymiarach", text: "Ten sam pomysł ze słonecznika potrafi równomiernie rozłożyć punkty na kuli.", clue: "Zmień skręt przestrzeni. Dla 1× punkty są najbardziej równomierne." },
     primes: { formula: "p ∈ {2, 3, 5, 7, 11…}", title: "Dzielą się tylko przez 1 i siebie", text: "Nie obliczamy ich podczas animacji — odkrywamy w przestrzeni gotową listę tysiąca liczb pierwszych.", clue: "Dodawaj punkty suwakiem i wypatruj miejsc, w których helisa robi większe przerwy." },
     formulas: { formula: FORMULAS.find((item) => item.id === settings.formulas.shape)!.equation, title: FORMULAS.find((item) => item.id === settings.formulas.shape)!.name, text: FORMULAS.find((item) => item.id === settings.formulas.shape)!.description, clue: "Przełącz widok XY i 3D. Dla wzorów przestrzennych obróć scenę myszką i obejrzyj ją z każdej strony." },
-    mobiusDrive: { formula: "M(t,s)=((R+s cos(t/2))cos t, (R+s cos(t/2))sin t, s sin(t/2))", title: "Tor ma tylko jedną stronę", text: "Parametr s opisuje pozycję auta w poprzek toru. Gdy przekroczy szerokość wstęgi, samochód traci podłoże i spada.", clue: "Włącz kamerę z trzeciej osoby, rozpędź się ostrożnie i spróbuj przejechać dwa okrążenia bez wypadnięcia." },
+    mobiusDrive: { formula: "M(t,s)=((R+s cos(t/2))cos t, (R+s cos(t/2))sin t, s sin(t/2))", title: "Tor ma tylko jedną stronę", text: "Parametr s opisuje pozycję auta w poprzek toru. Gdy przekroczy szerokość wstęgi, samochód traci podłoże i spada.", clue: "Omijaj losowo rozstawione drzewa i spróbuj przejechać dwa okrążenia bez wypadnięcia." },
   }[lab];
 
   return (
